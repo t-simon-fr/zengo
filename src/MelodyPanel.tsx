@@ -1,6 +1,12 @@
-import type { MelodyPart } from "./melody";
+import { changeMelodyInstrument, type MelodyPart } from "./melody";
+import {
+  sampledInstruments,
+  instrumentNames,
+  melodyProfiles,
+} from "./instruments";
 import type { Progression } from "./harmony";
 import { translate, type Locale } from "./i18n";
+import { hasExpression } from "./expression";
 
 export default function MelodyPanel({
   progression,
@@ -155,12 +161,19 @@ export default function MelodyPanel({
               <select
                 value={part.instrument}
                 onChange={(e) =>
-                  change({
-                    instrument: e.target.value as MelodyPart["instrument"],
-                  })
+                  onChange(
+                    changeMelodyInstrument(
+                      progression,
+                      e.target.value as MelodyPart["instrument"],
+                    ),
+                  )
                 }
               >
-                <option value="piano">{t("Akusztikus zongora")}</option>
+                {sampledInstruments.map((id) => (
+                  <option key={id} value={id}>
+                    {t(instrumentNames[id])}
+                  </option>
+                ))}
                 <option value="lead">{t("Lágy szintidallam")}</option>
               </select>
             </label>
@@ -201,6 +214,19 @@ export default function MelodyPanel({
               {playing ? t("Leállítás") : t("Teljes menet meghallgatása")}
             </button>
           </div>
+          <p className="bass-hint" aria-live="polite">
+            {t(melodyProfiles[part.instrument].hint)}{" "}
+            {t(
+              "A hangszínváltás a generált dallamot a hangszerhez igazítja. A kézi szerkesztés ritmusát megőrzi, hangjait az új hangterjedelembe illeszti.",
+            )}
+          </p>
+          {hasExpression(part.instrument) ? (
+            <p className="bass-hint">
+              {t(
+                "A MIDI-export dinamikagörbét és finom vibratóvezérlést is tartalmaz; fúvósoknál légzésvezérlést is. A megszólalás a fogadó hangszer beállításaitól függ.",
+              )}
+            </p>
+          ) : null}
           <p className="bass-hint">
             {t(
               "A generálási vezérlők új dallamot készítenek, felülírva a kézi hangmódosításokat. Az időzítésváltás arányosan átméretezi a kézzel szerkesztett dallamot. A némítás és hangerő csak az előnézetre hat.",

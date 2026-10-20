@@ -1,17 +1,12 @@
 import { scale, type Note, type Progression } from "./harmony";
 import { rawNotes, type Track } from "./groove";
 import { progressionBeats } from "./timing";
+import { melodyPitches } from "./melody";
 export type PitchedTrack = Exclude<Track, "drums">;
 export function trackPitches(p: Progression, track: PitchedTrack) {
-  const low = track === "bass" ? 28 : track === "melody" ? 60 : 0;
-  const high =
-    track === "bass"
-      ? 52
-      : track === "melody"
-        ? p.melody?.range === "wide"
-          ? 84
-          : 72
-        : 127;
+  if (track === "melody") return melodyPitches(p);
+  const low = track === "bass" ? 28 : 0;
+  const high = track === "bass" ? 52 : 127;
   return Array.from({ length: high - low + 1 }, (_, i) => low + i).filter((n) =>
     scale(p.key).includes((n - p.key.root + 120) % 12),
   );

@@ -1,4 +1,14 @@
-# MVP állapot — 2026-10-17
+# Zengo állapot — 2026-10-20
+
+## Hangszerfüggő dallamok és akusztikus hangkönyvtár
+
+- Zengo projektformátum: 1-es verzió, `.zengo.json`, `zengo-studio-v1` böngészős tárhely. A korábbi ChordFlow-sémák támogatása megszűnt; az alábbi régebbi naplóbejegyzések történeti állapotot írnak le.
+- Zongora mellett mintavételezett gitár, hegedű, trombita és fuvola, külön dallamhangszín-választással. Hangszerfüggő ritmika, hangterjedelem, ugráskorlát és frázisformálás; a fúvósoknak levegővételi szünetek. A kézi dallam ritmusa és dinamikája hangszerváltáskor megmarad, hangjai az új hangszer tartományába kerülnek. A közös szerkesztő és a projektvalidáció is ugyanazokat a határokat használja.
+- A fuvola 34 VSCO 2 CE felvételt használ, két dinamikai réteggel, kitartott és rövid artikulációval, kétféle váltakozó staccato indítással. Rögzített forrásrevízió, reprodukálható 16 bites mono WAV-konverzió, rétegenként illesztett jelszint, CC0 kredit. A többi három új akusztikus hangszer 63 MP3 felvétel a tonejs-instruments könyvtárból, CC BY 3.0 forrásmegjelöléssel.
+- MIDI-ben hangszerprogram, hegedűnél/fúvósoknál CC11 expression és késleltetett, finom CC1 vibratóvezérlés; fúvósoknál CC2 breath is. A böngészős előnézet a CC11 görbét követi, seek és loop esetén is. A fogadó virtuális hangszer CC-hozzárendelése könyvtárfüggő; nincs könyvtárspecifikus keyswitch.
+- 48 automatizált teszt sikeres; hangszerprofilok 24 hangnemben, szerkesztés/mentés, MIDI-programok és vezérlőgörbék, cache, némított szólamok, leállítás és hiba utáni újratöltés ellenőrizve. Mind a 127 helyi hangminta a böngésző natív dekóderével is ellenőrzött, hiányzó/néma/sérült fájl nélkül. A mintakészlet összesen kb. 28 MB, hangszerenként, igény szerint töltődik.
+
+## Korábbi fejlesztési napló — 2026-10-17
 
 ## Loop, közös szerkesztő, projektfájl és dobok
 

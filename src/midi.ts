@@ -3,10 +3,13 @@ import type { Progression } from "./harmony";
 import { translate, type Locale } from "./i18n";
 import { progressionBeats } from "./timing";
 import { grooveNotes } from "./groove";
+import { midiPrograms, type Instrument } from "./instruments";
+import { expressionEvents } from "./expression";
 export function exportMidi(
   progression: Progression,
   tempo: number,
   locale: Locale = "hu",
+  instrument: Instrument = "piano",
 ): Uint8Array {
   const midi = new Midi();
   midi.header.setTempo(tempo);
@@ -15,6 +18,7 @@ export function exportMidi(
   const track = midi.addTrack();
   // MIDI text events use single-byte characters; keep metadata ASCII-compatible.
   track.name = translate(locale, "Zengo - Akkordok");
+  track.instrument.number = midiPrograms[instrument];
   grooveNotes(progression, "chords", tempo).forEach((n) =>
     track.addNote({
       midi: n.midi,
@@ -54,9 +58,9 @@ export function exportMidi(
     const melody = midi.addTrack();
     melody.name = translate(locale, "Zengo - Dallam");
     melody.channel = 2;
-    melody.instrument.number =
-      progression.melody.instrument === "piano" ? 0 : 80;
-    for (const n of grooveNotes(progression, "melody", tempo))
+    melody.instrument.number = midiPrograms[progression.melody.instrument];
+    const notes = grooveNotes(progression, "melody", tempo);
+    for (const n of notes)
       melody.addNote({
         midi: n.midi,
         ticks: Math.round(n.startBeat * midi.header.ppq),
@@ -65,6 +69,16 @@ export function exportMidi(
           Math.round(n.durationBeats * midi.header.ppq),
         ),
         velocity: n.velocity,
+      });
+    for (const event of expressionEvents(
+      notes,
+      progression.melody.instrument,
+      tempo,
+    ))
+      melody.addCC({
+        number: event.controller,
+        value: event.value,
+        ticks: Math.round(event.beat * midi.header.ppq),
       });
     melody.addCC({
       number: 123,

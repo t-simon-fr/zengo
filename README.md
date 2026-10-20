@@ -1,8 +1,16 @@
 # Zengo
 
-Magyar és angol felületű, böngészőben futó akkordmenet-műhely. A generálás, a választható szintetizátor- és akusztikus zongora-előnézet, valamint a MIDI-export helyben működik; nincs szükség fiókra vagy API-kulcsra.
+Magyar és angol felületű, böngészőben futó akkordmenet-műhely. A generálás, a választható szintetizátor-, zongora-, gitár-, hegedű-, trombita- és fuvola-előnézet, valamint a MIDI-export helyben működik; nincs szükség fiókra vagy API-kulcsra.
 
 A zongora a Salamander Grand Piano Yamaha C5 hangmintáit használja (Alexander Holm, CC BY 3.0). A 30 MP3 fájl az alkalmazással együtt kerül kiszolgálásra, összesen kb. 2 MB; lejátszáskor nincs külső CDN-kérés. Első indításkor a felület jelzi a minták betöltését, utána a dekódolt hangokat újra felhasználja. A kiválasztott hangszer a projekt részeként menthető. Forrás és licenc: [public/audio/piano/CREDITS.md](public/audio/piano/CREDITS.md).
+
+Az akusztikus gitár 37, a hegedű 15, a trombita 11 MP3 felvételt használ a N. P. Brosowsky-féle tonejs-instruments könyvtárból (CC BY 3.0). Források és licenc: [public/audio/INSTRUMENT-CREDITS.txt](public/audio/INSTRUMENT-CREDITS.txt). A fuvola külön VSCO 2 CE felvételekből épül: 34 PCM WAV, két dinamikai réteg, kitartott és kétféle váltakozó staccato indítás. A konverzió megőrzi az eredeti mintavételt, 16 bites mono WAV-ot készít, és illeszti a felvételek hangerejét. Kredit: Versilian Studios / Ivy Audio (CC0), részletek: [public/audio/flute/CREDITS.txt](public/audio/flute/CREDITS.txt). A hangszerek csak használatkor töltődnek be, a némított szólamokhoz nem töltünk mintákat. A fuvolakészlet kb. 13 MB, a teljes mintakészlet kb. 28 MB.
+
+A dallam hangszíne a generálást is befolyásolja: a gitár akkordhangokra épülő pengetett motívumokat, a hegedű éneklő, többnyire lépésenként haladó dallamot, a trombita és a fuvola levegővételi szünetekkel tagolt frázisokat kap. A fuvola MIDI-jében finomabb dinamikai ívek is vannak. Kézi szerkesztés után a hangszínváltás megőrzi a ritmust, és az új hangszer tartományába illeszti a hangokat. A piano roll ugyanazokat a hanghatárokat használja, mint a generátor és a projektellenőrzés.
+
+A MIDI General MIDI hangszerprogramot is tartalmaz (gitár 24, hegedű 40, trombita 56, fuvola 73, nullától számozva). A hegedű és a fúvósok CC11 dinamikagörbét és visszafogott, késleltetett CC1 vibratóvezérlést kapnak, a fúvósok CC2 légzésvezérlést is. A fogadó hangszerben ezek megfeleltetése könyvtárfüggő; nincs beégetett keyswitch vagy MPE-követelmény. A böngészős előnézet a CC11 hangerőgörbét követi. A fuvola rövid hangjai valódi staccato felvételekből szólalnak meg; hosszabb hangjai kitartott mintákból. Ezek rögzített hosszúságú minták, valódi legato átmenetfelvételek és folyamatos dinamikai rétegkeverés nélkül; a rendszer nem helyettesít egy teljes hangszerkönyvtárat.
+
+A mintaforrások rögzített Git-revízióból reprodukálhatók: `node scripts/fetch-instruments.mjs` és `node scripts/fetch-flute.mjs`. Fejlesztéskor a `/scripts/audio-qa.html` oldal a böngésző natív dekóderével ellenőrzi az összes hangminta meglétét, dekódolhatóságát és jelszintjét.
 
 ## Indítás
 

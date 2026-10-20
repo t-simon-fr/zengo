@@ -150,6 +150,30 @@ export const english = {
   Szintetizátor: "Synth",
   "Modellezett zongora": "Modeled piano",
   "Akusztikus zongora": "Acoustic piano",
+  "Akusztikus gitár": "Acoustic guitar",
+  Hegedű: "Violin",
+  Trombita: "Trumpet",
+  Fuvola: "Flute",
+  Fuvolahangminták: "Flute samples",
+  "Fuvola: áramló dallamívek, lágy indítások, dinamikai hullámok és lélegző frázisok.":
+    "Flute: flowing melodic lines, gentle entrances, expressive swells and breathing space.",
+  "Gitár-, hegedű-, trombita- és fuvolahangminták":
+    "Guitar, violin, trumpet and flute samples",
+  "A MIDI-export dinamikagörbét és finom vibratóvezérlést is tartalmaz; fúvósoknál légzésvezérlést is. A megszólalás a fogadó hangszer beállításaitól függ.":
+    "MIDI export includes expression curves and subtle vibrato control, plus breath control for wind instruments. The result depends on your virtual instrument's controller settings.",
+  "Hangminták betöltése…": "Loading instrument samples…",
+  "Gitár-, hegedű- és trombitahangminták": "Guitar, violin and trumpet samples",
+  "Források és licenc": "Sources and license",
+  "A hangminták betöltése vagy indítása nem sikerült. Próbáld újra, vagy válassz szintetizátort az érintett szólamhoz.":
+    "Couldn't load or play the instrument samples. Try again, or choose a synth sound for the affected part.",
+  "Gitár: pengetett akkordhangok, arpeggiók és kényelmes középfekvés.":
+    "Guitar: picked chord tones and arpeggios in a comfortable midrange.",
+  "Hegedű: éneklő frázisok, hosszabb hangok és kis dallamlépések.":
+    "Violin: lyrical phrases, longer notes and mostly stepwise motion.",
+  "Trombita: hangsúlyos belépések, rövid válaszok és levegővételi szünetek.":
+    "Trumpet: accented entrances, short answering phrases and room to breathe.",
+  "A hangszínváltás a generált dallamot a hangszerhez igazítja. A kézi szerkesztés ritmusát megőrzi, hangjait az új hangterjedelembe illeszti.":
+    "Changing the sound adapts generated melodies to the instrument. Hand-edited parts keep their rhythm, with pitches fitted to the new range.",
   "Zongorahang betöltése…": "Loading piano samples…",
   Zongorahangminták: "Piano samples",
   "A zongorahang betöltése vagy indítása nem sikerült. Próbáld újra, vagy válaszd a szintetizátort.":

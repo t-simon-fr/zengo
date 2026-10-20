@@ -61,6 +61,7 @@ import {
   type Session,
 } from "./project";
 import { Preview, type Instrument } from "./playback";
+import { isSampled, sampledInstruments, instrumentNames } from "./instruments";
 import { download, exportMidi } from "./midi";
 import { readLocale, translate, type Locale, type MessageKey } from "./i18n";
 
@@ -199,7 +200,7 @@ export default function App() {
     }
     setError("");
     setPlaying(p.id);
-    setLoadingSound(instrument === "piano" || p.melody?.instrument === "piano");
+    setLoadingSound(isSampled(instrument) || isSampled(p.melody?.instrument));
     try {
       await preview.current.play(
         p,
@@ -219,8 +220,8 @@ export default function App() {
     } catch {
       stop();
       setError(
-        instrument === "piano" || p.melody?.instrument === "piano"
-          ? "A zongorahang betöltése vagy indítása nem sikerült. Próbáld újra, vagy válaszd a szintetizátort."
+        isSampled(instrument) || isSampled(p.melody?.instrument)
+          ? "A hangminták betöltése vagy indítása nem sikerült. Próbáld újra, vagy válassz szintetizátort az érintett szólamhoz."
           : "Nem sikerült elindítani a hangot. Ellenőrizd a böngésző hangengedélyét, majd próbáld újra.",
       );
     }
@@ -314,7 +315,7 @@ export default function App() {
   function midi() {
     if (!selected) return;
     try {
-      const bytes = exportMidi(selected, tempo, locale);
+      const bytes = exportMidi(selected, tempo, locale, instrument);
       download(
         bytes.slice().buffer,
         `zengo-${keyName(selected.key, locale).replaceAll(" ", "-")}-${tempo}bpm.mid`,
@@ -566,7 +567,11 @@ export default function App() {
                 aria-label={t("Lejátszás hangszíne")}
               >
                 <option value="synth">{t("Szintetizátor")}</option>
-                <option value="piano">{t("Akusztikus zongora")}</option>
+                {sampledInstruments.map((id) => (
+                  <option key={id} value={id}>
+                    {t(instrumentNames[id])}
+                  </option>
+                ))}
               </select>
             </label>
             <div className="length-badge">
@@ -1304,7 +1309,7 @@ export default function App() {
         ) : null}
         <div className="feedback" role="status" aria-live="polite">
           {loadingSound
-            ? t("Zongorahang betöltése…")
+            ? t("Hangminták betöltése…")
             : message
               ? t(message)
               : ""}
@@ -1322,6 +1327,28 @@ export default function App() {
             {t("MIDI export")}
           </span>
         </footer>
+        <p className="sample-credits">
+          {t("Gitár-, hegedű- és trombitahangminták")}: N. P. Brosowsky ·{" "}
+          <a
+            href={`${import.meta.env.BASE_URL}audio/INSTRUMENT-CREDITS.txt`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("Források és licenc")}
+          </a>{" "}
+          · CC BY 3.0
+        </p>
+        <p className="sample-credits">
+          {t("Fuvolahangminták")}: Versilian Studios / Ivy Audio ·{" "}
+          <a
+            href={`${import.meta.env.BASE_URL}audio/flute/CREDITS.txt`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("Források és licenc")}
+          </a>{" "}
+          · CC0
+        </p>
         <p className="sample-credits">
           {t("Zongorahangminták")}:{" "}
           <a

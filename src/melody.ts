@@ -1,6 +1,12 @@
 import { scale, type Note, type Progression } from "./harmony";
 import { progressionBeats } from "./timing";
 import { validNotes } from "./note-data";
+import {
+  isSampled,
+  melodyProfiles,
+  breathProfile,
+  type MelodyInstrument,
+} from "./instruments";
 
 export interface MelodyPart {
   seed: number;
@@ -8,7 +14,7 @@ export interface MelodyPart {
   range: "narrow" | "wide";
   repetition: "high" | "low";
   ending: "loop" | "resolved";
-  instrument: "piano" | "lead";
+  instrument: MelodyInstrument;
   volume: number;
   muted: boolean;
   manualNotes?: Note[];
@@ -25,7 +31,7 @@ export function validMelody(p: MelodyPart): boolean {
     !["narrow", "wide"].includes(p.range) ||
     !["high", "low"].includes(p.repetition) ||
     !["loop", "resolved"].includes(p.ending) ||
-    !["piano", "lead"].includes(p.instrument) ||
+    !(p.instrument === "lead" || isSampled(p.instrument)) ||
     typeof p.muted !== "boolean" ||
     !Number.isFinite(p.volume) ||
     p.volume < 0 ||
@@ -33,13 +39,22 @@ export function validMelody(p: MelodyPart): boolean {
   )
     return false;
   if (p.manualNotes === undefined) return p.manualBeats === undefined;
-  return validNotes(p.manualNotes, p.manualBeats, 60, 84, true);
+  const profile = melodyProfiles[p.instrument];
+  return validNotes(
+    p.manualNotes,
+    p.manualBeats,
+    profile.low,
+    profile.high,
+    true,
+  );
 }
 export function melodyPitches(p: Progression) {
   const degrees = scale(p.key);
+  const profile = melodyProfiles[p.melody?.instrument ?? "piano"];
+  const low = p.melody?.range === "wide" ? profile.low : profile.narrow;
   return Array.from(
     { length: p.melody?.range === "wide" ? 25 : 13 },
-    (_, i) => 60 + i,
+    (_, i) => low + i,
   ).filter((n) => degrees.includes((n - p.key.root + 120) % 12));
 }
 export function melodyNotes(p: Progression): Note[] {
@@ -63,13 +78,17 @@ export function melodyNotes(p: Progression): Note[] {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     return state / 0x100000000;
   };
-  const rhythms = {
-    sparse: [0, 1.5, 3],
-    balanced: [0, 0.75, 1.5, 2.5, 3.5],
-    busy: [0, 0.5, 1, 1.5, 2, 2.75, 3.5],
-  };
+  const profile = melodyProfiles[part.instrument];
+  const breath = breathProfile(part.instrument);
+  const phraseEnd = (start: number) =>
+    breath
+      ? Math.floor(start / breath.every) * breath.every +
+        breath.every -
+        breath.rest
+      : beats;
+  const rhythms = profile.rhythms;
   // One seed defines a short contour. Repetition reuses that contour; answers vary it.
-  const contour = Array.from({ length: 7 }, () => Math.floor(random() * 5) - 2);
+  const contour = Array.from({ length: 8 }, () => Math.floor(random() * 5) - 2);
   const anchor = allowed[Math.floor(allowed.length / 2)];
   const offsetSet = new Set(p.chords.map((c) => c.startBeat));
   for (let bar = 0; bar < beats / 4; bar++) {
@@ -81,7 +100,9 @@ export function melodyNotes(p: Progression): Note[] {
       offsetSet.add(bar * 4 + offset);
     });
   }
-  const offsets = [...offsetSet].filter((n) => n < beats).sort((a, b) => a - b);
+  const offsets = [...offsetSet]
+    .filter((n) => n < beats && (!breath || n < phraseEnd(n)))
+    .sort((a, b) => a - b);
   let previous = anchor;
   const notes = offsets.map((start, index) => {
     const chord = p.chords.find(
@@ -95,8 +116,14 @@ export function melodyNotes(p: Progression): Note[] {
     const motifIndex = rhythms[part.density].indexOf(local);
     const variation =
       part.repetition === "low" ? Math.floor(random() * 5) - 2 : 0;
-    const baseIndex = allowed.indexOf(closest(anchor));
-    const target =
+    const anchorIndex = allowed.indexOf(closest(anchor));
+    // Pull lyrical lines back toward their register, so a repeated motif cannot
+    // accumulate at the top/bottom of the playable range.
+    const baseIndex =
+      part.instrument === "violin" || part.instrument === "flute"
+        ? Math.round((allowed.indexOf(closest(previous)) + anchorIndex) / 2)
+        : anchorIndex;
+    let target =
       allowed[
         Math.max(
           0,
@@ -106,25 +133,53 @@ export function melodyNotes(p: Progression): Note[] {
           ),
         )
       ];
-    const choices = strong && chordTones.length ? chordTones : allowed;
+    if (part.instrument === "guitar" && chordTones.length) {
+      const picking = [0, 1, 2, 1, 3, 2, 1, 0];
+      target =
+        chordTones[
+          (picking[Math.max(0, motifIndex)] +
+            contour[0] +
+            2 +
+            (part.repetition === "low" ? Math.abs(variation) : 0)) %
+            chordTones.length
+        ];
+    }
+    const choices =
+      (strong || part.instrument === "guitar") && chordTones.length
+        ? chordTones
+        : allowed;
     // Prefer the motif target but penalize unnecessarily large melodic leaps.
     const midi = [...choices].sort(
       (a, b) =>
         Math.abs(a - target) +
-        Math.max(0, Math.abs(a - previous) - 5) * 1.5 -
-        (Math.abs(b - target) + Math.max(0, Math.abs(b - previous) - 5) * 1.5),
+        Math.max(0, Math.abs(a - previous) - profile.leap) * 1.5 -
+        (Math.abs(b - target) +
+          Math.max(0, Math.abs(b - previous) - profile.leap) * 1.5),
     )[0];
     previous = midi;
     const gap =
       Math.min(
         offsets[index + 1] ?? beats,
         chord.startBeat + chord.durationBeats,
+        phraseEnd(start),
       ) - start;
     return {
       midi,
       startBeat: start,
-      durationBeats: gap * (part.density === "sparse" ? 0.82 : 0.74),
-      velocity: strong ? 0.82 : 0.65 + random() * 0.1,
+      durationBeats:
+        (breath ? Math.min(gap, breath.maxNote) : gap) *
+        ((part.instrument === "piano" || part.instrument === "lead") &&
+        part.density === "sparse"
+          ? 0.82
+          : profile.gate),
+      velocity:
+        part.instrument === "flute"
+          ? 0.57 +
+            Math.sin(Math.PI * ((start % 8) / 8)) * 0.18 +
+            (strong ? 0.04 : random() * 0.04)
+          : strong
+            ? 0.82
+            : 0.65 + random() * 0.1,
     };
   });
   const last = notes[notes.length - 1];
@@ -134,7 +189,12 @@ export function melodyNotes(p: Progression): Note[] {
       last.midi,
       allowed.filter((n) => finalChord.notes.some((c) => c % 12 === n % 12)),
     );
-    last.durationBeats = (beats - last.startBeat) * 0.95;
+    last.durationBeats = breath
+      ? Math.min(
+          breath.maxNote,
+          Math.min(beats, phraseEnd(last.startBeat)) - last.startBeat,
+        ) * 0.95
+      : (beats - last.startBeat) * 0.95;
   } else {
     const first = notes[0].midi;
     const neighbors = allowed.filter(
@@ -143,6 +203,20 @@ export function melodyNotes(p: Progression): Note[] {
     if (neighbors.length) last.midi = closest(last.midi, neighbors);
   }
   return notes;
+}
+
+// Keep manual rhythm and dynamics; only snap pitches into the new instrument's range.
+export function changeMelodyInstrument(
+  p: Progression,
+  instrument: MelodyInstrument,
+): Progression {
+  if (!p.melody) return p;
+  const next = { ...p, melody: { ...p.melody, instrument } };
+  if (p.melody.manualNotes) {
+    next.melody.manualNotes = melodyNotes(next);
+    next.melody.manualBeats = progressionBeats(next);
+  }
+  return next;
 }
 
 // Keep manual edits monophonic and within the current clip and scale.

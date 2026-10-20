@@ -64,7 +64,7 @@ export default function TransportBar({
         </label>
         <output aria-live="off">
           {loading
-            ? t("Zongorahang betöltése…")
+            ? t("Hangminták betöltése…")
             : t("{bar}. ütem · {beat}. negyed", {
                 bar: Math.floor(current / 4) + 1,
                 beat: new Intl.NumberFormat(locale, {

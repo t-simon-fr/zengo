@@ -2,37 +2,57 @@ import * as Tone from "tone";
 import { type Progression } from "./harmony";
 import { progressionBeats } from "./timing";
 import { grooveNotes, clipNotes, type Track } from "./groove";
-export type Instrument = "synth" | "piano";
+import {
+  isSampled,
+  sampleNotes,
+  sampleSettings,
+  type SampledInstrument,
+  type Instrument,
+} from "./instruments";
+export type { Instrument } from "./instruments";
+import { expressionEvents, expressionAt, hasExpression } from "./expression";
+import { FluteVoice } from "./flute-voice";
 
-const pianoNotes = [
-  "A0",
-  ...Array.from({ length: 7 }, (_, i) => i + 1).flatMap((octave) => [
-    `C${octave}`,
-    `D#${octave}`,
-    `F#${octave}`,
-    `A${octave}`,
-  ]),
-  "C8",
-];
-let pianoBuffers: Promise<Record<string, AudioBuffer>> | undefined;
-function loadPiano() {
-  pianoBuffers ??= Promise.all(
-    pianoNotes.map(
+const sampleCache = new Map<
+  SampledInstrument,
+  Promise<Record<string, AudioBuffer>>
+>();
+function loadSamples(instrument: SampledInstrument) {
+  const cached = sampleCache.get(instrument);
+  if (cached) return cached;
+  const pending = Promise.all(
+    sampleNotes[instrument].map(
       async (note) =>
         [
           note,
           await Tone.ToneAudioBuffer.load(
-            `${import.meta.env.BASE_URL}audio/piano/${note.replace("#", "s")}.mp3`,
+            `${import.meta.env.BASE_URL}audio/${instrument}/${note.replace("#", "s")}.${instrument === "flute" ? "wav" : "mp3"}`,
           ),
         ] as const,
     ),
   )
     .then(Object.fromEntries)
     .catch((error: unknown) => {
-      pianoBuffers = undefined;
+      sampleCache.delete(instrument);
       throw error;
     });
-  return pianoBuffers;
+  sampleCache.set(instrument, pending);
+  return pending;
+}
+
+function sampledVoice(
+  instrument: SampledInstrument,
+  buffers: Record<string, AudioBuffer>,
+  volume: number,
+) {
+  return instrument === "flute"
+    ? new FluteVoice(buffers, volume)
+    : new Tone.Sampler({
+        urls: buffers,
+        attack: sampleSettings[instrument].attack,
+        release: sampleSettings[instrument].release,
+        volume,
+      });
 }
 
 export interface PlaybackOptions {
@@ -41,9 +61,10 @@ export interface PlaybackOptions {
   onPosition?: (beat: number) => void;
 }
 export class Preview {
-  private synth: Tone.PolySynth | Tone.Sampler | undefined;
+  private synth: Tone.PolySynth | Tone.Sampler | FluteVoice | undefined;
   private bass: Tone.MonoSynth | undefined;
-  private melody: Tone.Sampler | Tone.Synth | undefined;
+  private melody: Tone.Sampler | Tone.Synth | FluteVoice | undefined;
+  private expression: Tone.Gain | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private generation = 0;
   private clock: ReturnType<typeof setInterval> | undefined;
@@ -67,6 +88,8 @@ export class Preview {
     this.bass = undefined;
     this.melody?.dispose();
     this.melody = undefined;
+    this.expression?.dispose();
+    this.expression = undefined;
     if (this.synth) {
       this.synth.dispose();
       this.synth = undefined;
@@ -84,44 +107,55 @@ export class Preview {
     const generation = this.generation;
     await Tone.start();
     if (generation !== this.generation) return;
-    let buffers: Record<string, AudioBuffer> | undefined;
+    const melodyPart = progression.melody;
+    const needed = new Set<SampledInstrument>();
     if (
-      instrument === "piano" ||
-      (progression.melody?.instrument === "piano" &&
-        !progression.melody.muted &&
-        progression.melody.volume > 0)
-    ) {
-      try {
-        buffers = await loadPiano();
-      } catch (error) {
-        if (generation !== this.generation) return;
-        throw error;
-      }
+      isSampled(instrument) &&
+      !progression.chordsMuted &&
+      progression.chordVolume !== 0
+    )
+      needed.add(instrument);
+    if (
+      melodyPart &&
+      isSampled(melodyPart.instrument) &&
+      !melodyPart.muted &&
+      melodyPart.volume > 0
+    )
+      needed.add(melodyPart.instrument);
+    let buffers: Partial<
+      Record<SampledInstrument, Record<string, AudioBuffer>>
+    >;
+    try {
+      buffers = Object.fromEntries(
+        await Promise.all(
+          [...needed].map(async (id) => [id, await loadSamples(id)]),
+        ),
+      );
+    } catch (error) {
       if (generation !== this.generation) return;
+      throw error;
     }
-    this.synth =
-      instrument === "piano"
-        ? new Tone.Sampler({
-            urls: buffers,
-            attack: 0,
-            release: 0.8,
-            volume:
-              -8 +
+    if (generation !== this.generation) return;
+    this.synth = isSampled(instrument)
+      ? buffers[instrument]
+        ? sampledVoice(
+            instrument,
+            buffers[instrument]!,
+            sampleSettings[instrument].gain +
               20 *
                 Math.log10(
                   Math.max(0.001, (progression.chordVolume ?? 80) / 80),
                 ),
-          }).toDestination()
-        : new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: "triangle" },
-            envelope: { attack: 0.02, decay: 0.3, sustain: 0.3, release: 0.35 },
-            volume:
-              -14 +
-              20 *
-                Math.log10(
-                  Math.max(0.001, (progression.chordVolume ?? 80) / 80),
-                ),
-          }).toDestination();
+          ).toDestination()
+        : undefined
+      : new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "triangle" },
+          envelope: { attack: 0.02, decay: 0.3, sustain: 0.3, release: 0.35 },
+          volume:
+            -14 +
+            20 *
+              Math.log10(Math.max(0.001, (progression.chordVolume ?? 80) / 80)),
+        }).toDestination();
     if (
       progression.bass &&
       !progression.bass.muted &&
@@ -151,24 +185,26 @@ export class Preview {
     const melody = progression.melody;
     if (melody && !melody.muted && melody.volume > 0) {
       const volume = -5 + 20 * Math.log10(melody.volume / 100);
-      this.melody =
-        melody.instrument === "piano"
-          ? new Tone.Sampler({
-              urls: buffers,
-              attack: 0,
-              release: 0.5,
-              volume,
-            }).toDestination()
-          : new Tone.Synth({
-              oscillator: { type: "triangle" },
-              envelope: {
-                attack: 0.015,
-                decay: 0.15,
-                sustain: 0.25,
-                release: 0.3,
-              },
-              volume: volume - 8,
-            }).toDestination();
+      this.melody = isSampled(melody.instrument)
+        ? sampledVoice(
+            melody.instrument,
+            buffers[melody.instrument]!,
+            volume + sampleSettings[melody.instrument].gain + 8,
+          )
+        : new Tone.Synth({
+            oscillator: { type: "triangle" },
+            envelope: {
+              attack: 0.015,
+              decay: 0.15,
+              sustain: 0.25,
+              release: 0.3,
+            },
+            volume: volume - 8,
+          });
+      if (hasExpression(melody.instrument)) {
+        this.expression = new Tone.Gain(1).toDestination();
+        this.melody.connect(this.expression);
+      } else this.melody.toDestination();
     }
     if (
       progression.drums &&
@@ -209,7 +245,26 @@ export class Preview {
         ),
       ]),
     ) as Record<Track, ReturnType<typeof grooveNotes>>;
+    const expression = melody
+      ? expressionEvents(events.melody, melody.instrument, tempo)
+      : [];
     const schedule = (audioStart: number, fromBeat: number) => {
+      if (this.expression) {
+        this.expression.gain.setValueAtTime(
+          expressionAt(expression, fromBeat),
+          audioStart,
+        );
+        for (const event of expression)
+          if (
+            event.controller === 11 &&
+            event.beat > fromBeat &&
+            event.beat <= beats
+          )
+            this.expression.gain.linearRampToValueAtTime(
+              event.value,
+              audioStart + (event.beat - fromBeat) * secondsPerBeat,
+            );
+      }
       for (const track of tracks) {
         if (
           (track === "chords" &&

@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Midi } from "@tonejs/midi";
 import { generate, scale, type Progression } from "./harmony";
-import { melodyNotes, editMelody, validMelody } from "./melody";
+import {
+  melodyNotes,
+  melodyPitches,
+  editMelody,
+  validMelody,
+  changeMelodyInstrument,
+} from "./melody";
+import { trackPitches, editTrack } from "./tracks";
+import { melodyProfiles, midiPrograms, breathProfile } from "./instruments";
+import { parseProject } from "./project";
 import { bassNotes } from "./bass";
 import { applyTiming, progressionBeats, timings } from "./timing";
 import { exportMidi } from "./midi";
@@ -28,6 +37,98 @@ function arrangement(root = 9, mode: "major" | "minor" = "minor"): Progression {
   };
 }
 describe("motif melody", () => {
+  it("adapts every acoustic instrument to the key and clip, with playable editor ranges and MIDI programs", () => {
+    for (const instrument of ["guitar", "violin", "trumpet", "flute"] as const)
+      for (let root = 0; root < 12; root++)
+        for (const mode of ["major", "minor"] as const)
+          for (const timing of timings)
+            for (const density of ["sparse", "balanced", "busy"] as const) {
+              const p = changeMelodyInstrument(
+                applyTiming(arrangement(root, mode), timing.id),
+                instrument,
+              );
+              p.melody = { ...p.melody!, density, range: "wide" };
+              const notes = melodyNotes(p);
+              expect(notes.length).toBeGreaterThan(0);
+              expect(melodyNotes(p)).toEqual(notes);
+              expect(trackPitches(p, "melody")).toEqual(melodyPitches(p));
+              notes.forEach((n, i) => {
+                expect(n.midi).toBeGreaterThanOrEqual(
+                  melodyProfiles[instrument].low,
+                );
+                expect(n.midi).toBeLessThanOrEqual(
+                  melodyProfiles[instrument].high,
+                );
+                expect(scale(p.key)).toContain((n.midi - root + 120) % 12);
+                expect(n.durationBeats).toBeGreaterThan(0);
+                expect(n.startBeat + n.durationBeats).toBeLessThanOrEqual(
+                  notes[i + 1]?.startBeat ?? progressionBeats(p),
+                );
+                const breath = breathProfile(instrument);
+                if (breath) {
+                  expect(n.startBeat % breath.every).toBeLessThan(
+                    breath.every - breath.rest,
+                  );
+                  expect(n.startBeat + n.durationBeats).toBeLessThanOrEqual(
+                    Math.floor(n.startBeat / breath.every) * breath.every +
+                      breath.every -
+                      breath.rest,
+                  );
+                }
+              });
+              const edited = editTrack(p, "melody", 0, { midi: 1 });
+              expect(validMelody(edited.melody!)).toBe(true);
+              const project = {
+                version: 1,
+                key: p.key,
+                mood: p.mood,
+                voicing: p.voicing,
+                rhythm: "auto",
+                timing: timing.id,
+                tempo: 110,
+                instrument,
+                session: { selected: p.id, progressions: [edited] },
+              };
+              expect(parseProject(JSON.stringify(project))).not.toBeNull();
+            }
+    for (const instrument of [
+      "guitar",
+      "violin",
+      "trumpet",
+      "flute",
+    ] as const) {
+      const p = changeMelodyInstrument(arrangement(), instrument);
+      const midi = new Midi(exportMidi(p, 110, "en", instrument));
+      expect(midi.tracks[0].instrument.number).toBe(midiPrograms[instrument]);
+      expect(midi.tracks[2].instrument.number).toBe(midiPrograms[instrument]);
+    }
+  }, 30000);
+  it("changes musical phrasing with the instrument and preserves manual rhythm during a sound change", () => {
+    const p = arrangement();
+    const guitar = melodyNotes(changeMelodyInstrument(p, "guitar"));
+    const violin = melodyNotes(changeMelodyInstrument(p, "violin"));
+    const trumpet = melodyNotes(changeMelodyInstrument(p, "trumpet"));
+    expect(guitar.length).toBeGreaterThan(violin.length);
+    expect(violin).not.toEqual(trumpet);
+    const edited = editMelody(changeMelodyInstrument(p, "guitar"), 0, {
+      midi: 55,
+    });
+    const switched = changeMelodyInstrument(edited, "violin");
+    expect(validMelody(switched.melody!)).toBe(true);
+    expect(
+      melodyNotes(switched).map((n) => [
+        n.startBeat,
+        n.durationBeats,
+        n.velocity,
+      ]),
+    ).toEqual(
+      melodyNotes(edited).map((n) => [
+        n.startBeat,
+        n.durationBeats,
+        n.velocity,
+      ]),
+    );
+  });
   it("stays diatonic and monophonic, above the bass, across keys, timing and density", () => {
     for (const mode of ["major", "minor"] as const)
       for (let root = 0; root < 12; root++)
@@ -37,11 +138,10 @@ describe("motif melody", () => {
               const p = applyTiming(arrangement(root, mode), timing.id);
               p.melody = { ...p.melody!, density, range };
               const notes = melodyNotes(p);
+              const bassHigh = Math.max(...bassNotes(p).map((n) => n.midi));
               expect(notes.length).toBeGreaterThan(3);
               notes.forEach((n, i) => {
-                expect(n.midi).toBeGreaterThan(
-                  Math.max(...bassNotes(p).map((n) => n.midi)),
-                );
+                expect(n.midi).toBeGreaterThan(bassHigh);
                 expect(n.midi).toBeLessThanOrEqual(
                   range === "narrow" ? 72 : 84,
                 );

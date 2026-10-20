@@ -14,6 +14,7 @@ import { validMelody } from "./melody";
 import { validDrums } from "./drums";
 import { validGroove } from "./groove";
 import { validNotes } from "./note-data";
+import { isSampled } from "./instruments";
 export interface Session {
   progressions: Progression[];
   selected: string | null;
@@ -44,7 +45,7 @@ export function parseProject(raw: string): Project | null {
       !["triad", "lush"].includes(v.voicing) ||
       (v.rhythm !== "auto" && !rhythms.some((r) => r.id === v.rhythm)) ||
       !timings.some((item) => item.id === v.timing) ||
-      !["synth", "piano"].includes(v.instrument ?? "") ||
+      !(v.instrument === "synth" || isSampled(v.instrument)) ||
       !Number.isFinite(v.tempo) ||
       v.tempo < 40 ||
       v.tempo > 220 ||

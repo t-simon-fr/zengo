@@ -15,6 +15,9 @@ const audio = vi.hoisted(() => ({
   kickHit: vi.fn(),
   noiseHit: vi.fn(),
   drumDispose: vi.fn(),
+  gainSet: vi.fn(),
+  gainRamp: vi.fn(),
+  gainDispose: vi.fn(),
 }));
 vi.mock("tone", () => ({
   start: async () => {},
@@ -40,6 +43,16 @@ vi.mock("tone", () => ({
     dispose = vi.fn();
   },
   ToneAudioBuffer: { load: audio.load },
+  Gain: class {
+    gain = {
+      setValueAtTime: audio.gainSet,
+      linearRampToValueAtTime: audio.gainRamp,
+    };
+    toDestination() {
+      return this;
+    }
+    dispose = audio.gainDispose;
+  },
   Synth: class {
     toDestination() {
       return this;
@@ -61,6 +74,9 @@ vi.mock("tone", () => ({
     toDestination() {
       return this;
     }
+    connect() {
+      return this;
+    }
     triggerAttackRelease = audio.hit;
     dispose = audio.dispose;
   },
@@ -75,6 +91,66 @@ afterEach(() => {
 });
 
 describe("sampled piano playback", () => {
+  it("loads independent acoustic parts, caches each instrument, and skips muted sample downloads", async () => {
+    vi.useFakeTimers();
+    audio.load.mockResolvedValue({});
+    const { Preview } = await import("./playback");
+    const player = new Preview();
+    const p: Progression = {
+      ...progression,
+      melody: {
+        seed: 1,
+        density: "balanced",
+        range: "narrow",
+        repetition: "high",
+        ending: "loop",
+        instrument: "violin",
+        volume: 70,
+        muted: false,
+      },
+    };
+    await player.play(p, 110, "guitar", vi.fn());
+    expect(audio.load).toHaveBeenCalledTimes(37 + 15);
+    expect(
+      audio.load.mock.calls.some(([url]) => url.includes("/violin/")),
+    ).toBe(true);
+    expect(
+      audio.load.mock.calls.some(([url]) => url.includes("/guitar/")),
+    ).toBe(true);
+    player.stop();
+    await player.play(
+      { ...p, melody: { ...p.melody!, instrument: "trumpet" } },
+      110,
+      "guitar",
+      vi.fn(),
+    );
+    expect(audio.load).toHaveBeenCalledTimes(37 + 15 + 11);
+    player.stop();
+    await player.play(
+      { ...p, melody: { ...p.melody!, instrument: "flute" } },
+      110,
+      "guitar",
+      vi.fn(),
+      vi.fn(),
+      { startBeat: 1 },
+    );
+    expect(audio.load).toHaveBeenCalledTimes(37 + 15 + 11 + 34);
+    expect(audio.load.mock.calls.some(([url]) => url.includes("/flute/"))).toBe(
+      true,
+    );
+    expect(audio.gainSet.mock.calls.at(-1)![1]).toBe(0.05);
+    expect(audio.gainRamp).toHaveBeenCalled();
+    player.stop();
+    expect(audio.gainDispose).toHaveBeenCalledTimes(3);
+    await player.play(
+      { ...p, chordsMuted: true, melody: { ...p.melody!, muted: true } },
+      110,
+      "piano",
+      vi.fn(),
+    );
+    expect(audio.load).toHaveBeenCalledTimes(37 + 15 + 11 + 34);
+    player.stop();
+  });
   it("loops on the audio clock from a selected beat, reports position and cancels future cycles", async () => {
     vi.useFakeTimers();
     audio.load.mockResolvedValue({});

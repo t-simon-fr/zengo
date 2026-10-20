@@ -53,15 +53,13 @@ export default function TrackEditor({
     track === "bass"
       ? 26
       : track === "melody"
-        ? 58
+        ? Math.min(...pitches) - 2
         : Math.max(0, Math.min(48, ...notes.map((n) => n.midi)) - 1);
   const high =
     track === "bass"
       ? 54
       : track === "melody"
-        ? p.melody?.range === "wide"
-          ? 86
-          : 74
+        ? Math.max(...pitches) + 2
         : Math.min(127, Math.max(72, ...notes.map((n) => n.midi)) + 1);
   const index = Math.min(selected, notes.length - 1),
     note = notes[index],

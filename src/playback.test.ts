@@ -18,11 +18,15 @@ const audio = vi.hoisted(() => ({
   gainSet: vi.fn(),
   gainRamp: vi.fn(),
   gainDispose: vi.fn(),
+  gainCreated: vi.fn(),
 }));
 vi.mock("tone", () => ({
   start: async () => {},
   now: () => audio.now,
   MembraneSynth: class {
+    connect() {
+      return this;
+    }
     toDestination() {
       return this;
     }
@@ -37,6 +41,9 @@ vi.mock("tone", () => ({
     dispose = audio.drumDispose;
   },
   Filter: class {
+    connect() {
+      return this;
+    }
     toDestination() {
       return this;
     }
@@ -44,6 +51,12 @@ vi.mock("tone", () => ({
   },
   ToneAudioBuffer: { load: audio.load },
   Gain: class {
+    constructor() {
+      audio.gainCreated();
+    }
+    connect() {
+      return this;
+    }
     gain = {
       setValueAtTime: audio.gainSet,
       linearRampToValueAtTime: audio.gainRamp,
@@ -54,6 +67,9 @@ vi.mock("tone", () => ({
     dispose = audio.gainDispose;
   },
   Synth: class {
+    connect() {
+      return this;
+    }
     toDestination() {
       return this;
     }
@@ -61,6 +77,9 @@ vi.mock("tone", () => ({
     dispose = audio.leadDispose;
   },
   MonoSynth: class {
+    connect() {
+      return this;
+    }
     toDestination() {
       return this;
     }
@@ -91,6 +110,215 @@ afterEach(() => {
 });
 
 describe("sampled piano playback", () => {
+  it("keeps an identical initial synchronization from restarting pending playback", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: object) => void;
+    audio.load.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { Preview } = await import("./playback");
+    const player = new Preview(),
+      ready = vi.fn();
+    const pending = player.play(progression, 120, "piano", vi.fn(), ready, {
+      loop: true,
+    });
+    await vi.waitFor(() => expect(audio.load).toHaveBeenCalledTimes(30));
+    await player.update(progression, 120, "piano", { loop: true });
+    expect(ready).not.toHaveBeenCalled();
+    finish({});
+    await pending;
+    expect(ready).toHaveBeenCalledTimes(1);
+    expect(audio.sampler).toHaveBeenCalledTimes(1);
+    player.stop();
+  });
+  it("recovers a throttled loop at its current phase and cancels pending edits on stop", async () => {
+    vi.useFakeTimers();
+    audio.load.mockResolvedValue({});
+    const { Preview } = await import("./playback");
+    const player = new Preview(),
+      position = vi.fn(),
+      ready = vi.fn();
+    await player.play(progression, 120, "piano", vi.fn(), ready, {
+      loop: true,
+      onPosition: position,
+    });
+    const hits = audio.hit.mock.calls.length;
+    audio.now = 25.2;
+    vi.advanceTimersByTime(30);
+    expect(audio.hit.mock.calls[hits][2]).toBeCloseTo(25.25);
+    expect(position.mock.calls.at(-1)![0]).toBeCloseTo(2.3);
+    let finish!: (value: object) => void;
+    audio.load.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const edit = player.update(progression, 120, "violin", { loop: true });
+    await vi.waitFor(() => expect(audio.load).toHaveBeenCalledTimes(45));
+    player.stop();
+    finish({});
+    await edit;
+    expect(audio.sampler).toHaveBeenCalledTimes(1);
+    expect(ready).toHaveBeenCalledTimes(1);
+    expect(player.position).toBe(0);
+    expect(audio.gainDispose).toHaveBeenCalledTimes(
+      audio.gainCreated.mock.calls.length,
+    );
+  });
+  const withLead = (): Progression => ({
+    ...progression,
+    melody: {
+      seed: 12,
+      density: "balanced",
+      range: "narrow",
+      repetition: "high",
+      ending: "loop",
+      instrument: "lead",
+      volume: 70,
+      muted: false,
+    },
+  });
+  it("swaps only an edited melody on the next beat, keeps accompaniment sounding and preserves loop phase", async () => {
+    vi.useFakeTimers();
+    audio.load.mockResolvedValue({});
+    const { Preview } = await import("./playback");
+    const player = new Preview(),
+      ended = vi.fn(),
+      position = vi.fn(),
+      p = withLead();
+    await player.play(p, 120, "piano", ended, vi.fn(), {
+      loop: true,
+      onPosition: position,
+    });
+    const chords = audio.hit.mock.calls.length,
+      lead = audio.leadHit.mock.calls.length;
+    audio.now = 1.1;
+    await player.update(
+      { ...p, melody: { ...p.melody!, seed: 99 } },
+      120,
+      "piano",
+      { loop: true },
+    );
+    expect(audio.sampler).toHaveBeenCalledTimes(1);
+    expect(audio.hit).toHaveBeenCalledTimes(chords);
+    expect(audio.dispose).not.toHaveBeenCalled();
+    expect(audio.leadHit.mock.calls[lead][2]).toBeCloseTo(1.55);
+    expect(player.position).toBeCloseTo(2.1);
+    vi.advanceTimersByTime(30);
+    expect(position.mock.calls.at(-1)![0]).toBeCloseTo(2.1);
+    audio.now = 1.6;
+    vi.advanceTimersByTime(30);
+    expect(position.mock.calls.at(-1)![0]).toBeCloseTo(3.1);
+    audio.now = 7.95;
+    vi.advanceTimersByTime(30);
+    expect(
+      audio.hit.mock.calls
+        .slice(chords)
+        .some((call) => Math.abs(call[2] - 8.05) < 1e-8),
+    ).toBe(true);
+    expect(
+      audio.leadHit.mock.calls.some((call) => Math.abs(call[2] - 8.05) < 1e-8),
+    ).toBe(true);
+    audio.now = 8.2;
+    vi.advanceTimersByTime(30);
+    expect(player.position).toBeCloseTo(0.3);
+    expect(ended).not.toHaveBeenCalled();
+    player.stop();
+    expect(audio.gainDispose).toHaveBeenCalledTimes(
+      audio.gainCreated.mock.calls.length,
+    );
+  });
+  it("keeps playing during sample loading and applies only the newest rapid instrument change", async () => {
+    vi.useFakeTimers();
+    audio.load.mockResolvedValue({});
+    const { Preview } = await import("./playback");
+    const player = new Preview(),
+      p = withLead(),
+      position = vi.fn();
+    await player.play(p, 120, "piano", vi.fn(), vi.fn(), {
+      loop: true,
+      onPosition: position,
+    });
+    let finish!: (value: object) => void;
+    audio.load.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    audio.now = 1.1;
+    const first = player.update(
+      { ...p, melody: { ...p.melody!, instrument: "flute" } },
+      120,
+      "piano",
+      { loop: true },
+    );
+    await vi.waitFor(() => expect(audio.load).toHaveBeenCalledTimes(30 + 34));
+    expect(audio.dispose).not.toHaveBeenCalled();
+    expect(player.position).toBeCloseTo(2.1);
+    audio.load.mockResolvedValue({});
+    await player.update(
+      { ...p, melody: { ...p.melody!, instrument: "trumpet" } },
+      120,
+      "piano",
+      { loop: true },
+    );
+    finish({});
+    await first;
+    expect(audio.sampler).toHaveBeenCalledTimes(2);
+    expect(player.position).toBeCloseTo(2.1);
+    player.stop();
+    expect(audio.gainDispose).toHaveBeenCalledTimes(
+      audio.gainCreated.mock.calls.length,
+    );
+  });
+  it("keeps the old version running if an edited instrument fails to load", async () => {
+    vi.useFakeTimers();
+    audio.load.mockResolvedValue({});
+    const { Preview } = await import("./playback");
+    const player = new Preview(),
+      p = withLead(),
+      ended = vi.fn();
+    await player.play(p, 120, "piano", ended, vi.fn(), { loop: true });
+    audio.now = 1.1;
+    audio.load.mockRejectedValue(new Error("Missing sample"));
+    await expect(
+      player.update(
+        { ...p, melody: { ...p.melody!, instrument: "violin" } },
+        120,
+        "piano",
+        { loop: true },
+      ),
+    ).rejects.toThrow("Missing sample");
+    expect(audio.dispose).not.toHaveBeenCalled();
+    expect(ended).not.toHaveBeenCalled();
+    expect(player.position).toBeCloseTo(2.1);
+    player.stop();
+  });
+  it("retimes tempo and live seeks without resetting the playhead, then turns loop off cleanly", async () => {
+    vi.useFakeTimers();
+    audio.load.mockResolvedValue({});
+    const { Preview } = await import("./playback");
+    const player = new Preview(),
+      ended = vi.fn(),
+      p = withLead();
+    await player.play(p, 120, "piano", ended, vi.fn(), { loop: true });
+    audio.now = 1.1;
+    await player.update(p, 100, "piano", { loop: true });
+    expect(player.position).toBeCloseTo(2.1);
+    audio.now = 2.15;
+    vi.advanceTimersByTime(600);
+    expect(player.position).toBeCloseTo(4);
+    await player.seek(8);
+    audio.now = 2.9;
+    vi.advanceTimersByTime(600);
+    expect(player.position).toBeCloseTo(8.25);
+    await player.update(p, 100, "piano", { loop: false });
+    vi.advanceTimersByTime(12000);
+    expect(ended).toHaveBeenCalledTimes(1);
+    expect(player.position).toBe(0);
+  });
   it("loads independent acoustic parts, caches each instrument, and skips muted sample downloads", async () => {
     vi.useFakeTimers();
     audio.load.mockResolvedValue({});
@@ -141,7 +369,9 @@ describe("sampled piano playback", () => {
     expect(audio.gainSet.mock.calls.at(-1)![1]).toBe(0.05);
     expect(audio.gainRamp).toHaveBeenCalled();
     player.stop();
-    expect(audio.gainDispose).toHaveBeenCalledTimes(3);
+    expect(audio.gainDispose).toHaveBeenCalledTimes(
+      audio.gainCreated.mock.calls.length,
+    );
     await player.play(
       { ...p, chordsMuted: true, melody: { ...p.melody!, muted: true } },
       110,
@@ -195,7 +425,7 @@ describe("sampled piano playback", () => {
     expect(audio.hit.mock.calls[0][2]).toBe(0.05);
     expect(audio.kickHit).toHaveBeenCalled();
     expect(audio.noiseHit).toHaveBeenCalled();
-    vi.advanceTimersByTime(8500);
+    vi.advanceTimersByTime(8600);
     expect(ended).toHaveBeenCalledTimes(1);
     expect(audio.drumDispose).toHaveBeenCalledTimes(3);
   });

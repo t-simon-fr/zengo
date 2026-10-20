@@ -39,6 +39,19 @@ export const english = {
   "{lane}, {n}. lépés": "{lane}, step {n}",
   "Zengo - Dobok": "Zengo - Drums",
   Lejátszó: "Transport",
+  "A lejátszás frissítése nem sikerült. A korábbi változat tovább szól.":
+    "Couldn't apply the playback update. The previous version is still playing.",
+  Gyorsbillentyűk: "Keyboard shortcuts",
+  Elejére: "Return to start",
+  "Indítás / leállítás": "Play / stop",
+  "Folytatás a megállítás helyéről": "Resume from the stop position",
+  "Ugrás a klip elejére": "Jump to the start of the clip",
+  "Ismétlés be / ki": "Toggle loop",
+  "Azonnali leállítás": "Stop immediately",
+  "A módosítások a következő negyeden lépnek életbe. A többi szólam közben folyamatosan szól.":
+    "Changes take effect on the next beat. Other parts keep playing uninterrupted.",
+  "Gépelés és mezőszerkesztés közben a gyorsbillentyűk nem aktívak.":
+    "Shortcuts are disabled while typing or editing a field.",
   "Lejátszás innen": "Play from here",
   Ismétlés: "Loop",
   "Indítási pont": "Start position",

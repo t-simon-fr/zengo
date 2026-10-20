@@ -35,13 +35,27 @@ export default function TransportBar({
   return (
     <section className="transport" aria-label={t("Lejátszó")}>
       <div className="bass-controls">
-        <button className="primary" onClick={onPlay}>
+        <button
+          className="primary"
+          onClick={onPlay}
+          aria-keyshortcuts="Space"
+          title={`${t("Indítás / leállítás")} · Space`}
+        >
           {playing ? t("Leállítás") : t("Lejátszás innen")}
+        </button>
+        <button
+          className="secondary"
+          onClick={() => onCursor(0)}
+          aria-keyshortcuts="Home"
+          title={`${t("Ugrás a klip elejére")} · Home`}
+        >
+          {t("Elejére")}
         </button>
         <label className="inline-check">
           <input
             type="checkbox"
             checked={loop}
+            aria-keyshortcuts="Control+l Meta+l"
             onChange={(e) => onLoop(e.target.checked)}
           />
           {t("Ismétlés")}
@@ -83,6 +97,69 @@ export default function TransportBar({
         value={Math.min(beats - 0.25, position ?? cursor)}
         onChange={(e) => onCursor(Number(e.target.value))}
       />
+      <p className="transport-hint">
+        {t(
+          "A módosítások a következő negyeden lépnek életbe. A többi szólam közben folyamatosan szól.",
+        )}
+      </p>
+      <details className="shortcut-details">
+        <summary>{t("Gyorsbillentyűk")}</summary>
+        <dl className="shortcut-list">
+          <div>
+            <dt>
+              <kbd>Space</kbd>
+            </dt>
+            <dd>{t("Indítás / leállítás")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Shift + Space</kbd>
+            </dt>
+            <dd>{t("Folytatás a megállítás helyéről")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Ctrl + Space</kbd>
+            </dt>
+            <dd>{t("Folytatás a megállítás helyéről")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Home</kbd>
+            </dt>
+            <dd>{t("Ugrás a klip elejére")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Esc</kbd>
+            </dt>
+            <dd>{t("Azonnali leállítás")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Ctrl / ⌘ + L</kbd>
+            </dt>
+            <dd>{t("Ismétlés be / ki")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Ctrl / ⌘ + S</kbd>
+            </dt>
+            <dd>{t("Projekt mentése")}</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd>Ctrl / ⌘ + Z</kbd>
+            </dt>
+            <dd>{t("Visszavonás")}</dd>
+          </div>
+        </dl>
+        <small>
+          {t(
+            "Gépelés és mezőszerkesztés közben a gyorsbillentyűk nem aktívak.",
+          )}
+        </small>
+      </details>
       <details className="groove-details">
         <summary>
           Groove{" "}

@@ -1,5 +1,12 @@
 # Zengo állapot — 2026-10-20
 
+## Folyamatos szerkesztés és DAW-billentyűparancsok
+
+- Space indít/leállít, Shift+Space és Ctrl+Space a megállítás helyéről folytat/szüneteltet. Home a klip elejére ugrik, Esc azonnal leállít, Ctrl/Cmd+L loopot kapcsol, Ctrl/Cmd+S ment, Ctrl/Cmd+Z visszavon. Gépelés, mezőszerkesztés, IME és billentyűismétlés esetén nincs globális beavatkozás; a helyi szerkesztőműveletek elsőbbséget kapnak. Magyar/angol, lenyitható billentyűsúgó és ARIA shortcut-jelzések a lejátszón.
+- Az audioórára időzített élő cserék a következő negyeden lépnek életbe, az aktuális zenei pozíció megtartásával. Csak a ténylegesen megváltozott szólam kap új hangmotort; a többi szólam kitartott hangjai érintetlenül folytatódnak. A cserélt szólam korábbi kimenete 5 ms-os leúsztatással némul. Tempó, kliphossz, loop és seek esetén a teljes elrendezés fázisban vált.
+- A mintabetöltés idején a régi megszólalás folytatódik; hiba esetén is megmarad. A legutolsó módosítás felülírja a korábbi függő kérést, Stop után késve beérkező betöltés nem indíthat hangot. A loop előre ütemez, böngésző-időzítő késése után az aktuális zenei fázison folytatódik.
+- 56 teszt sikeres, beleértve az élő dallamcserét változatlan kísérettel, loop-határt, tempóváltást, seeket, loop kikapcsolását, betöltési hibát és versenyhelyzeteket, valamint a hotkeyek gépelési/ismétlési védelmét. Böngészőben igazolt Space-stop, Shift+Space-folytatás, Ctrl+L-loop, megszakítás nélküli dallamvariálás és gépelhető BPM aktív lejátszás mellett.
+
 ## Hangszerfüggő dallamok és akusztikus hangkönyvtár
 
 - Zengo projektformátum: 1-es verzió, `.zengo.json`, `zengo-studio-v1` böngészős tárhely. A korábbi ChordFlow-sémák támogatása megszűnt; az alábbi régebbi naplóbejegyzések történeti állapotot írnak le.

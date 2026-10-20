@@ -42,7 +42,22 @@ Browser saves use the `zengo-studio-v1` local-storage key. Downloaded projects u
 
 A kiválasztott menet szerkesztőjében négy fül található: **Akkordok, Basszus, Dallam, Dobok**. A basszus és a dallam hozzáadása a saját fülükön történik; a beállítások és kézi hangok a fülek váltásakor megmaradnak. Minden szólam külön némítható, hangerővel szabályozható.
 
-A közös **Lejátszó** a kijelölt indítási ponttól indul. A pozíció a rácsra kattintással, a pozíciós csúszkával vagy a választóval állítható. Az **Ismétlés** bekapcsolásakor a klip vége után a teljes menet elejére tér vissza. A lejátszófej és a szóló hangok kiemelése a hangmotor óráját követi. Szerkesztés vagy tempóváltás leállítja az előnézetet; a következő indítás a módosított hangokat használja.
+A közös **Lejátszó** a kijelölt indítási ponttól indul. A pozíció a rácsra kattintással, a pozíciós csúszkával vagy a választóval állítható. Az **Ismétlés** bekapcsolásakor a klip vége után a teljes menet elejére tér vissza. A lejátszófej és a szóló hangok kiemelése a hangmotor óráját követi. Szerkesztés, dallamvariálás, hangszín- vagy tempóváltás közben a lejátszás folytatódik: a módosítás a következő negyeden, az aktuális zenei pozíció megtartásával lép életbe. Csak a megváltozott szólam cserélődik, így a többi szólam kitartott hangjai tovább szólnak. A loop menet közben is kapcsolható; kikapcsoláskor a jelenlegi kör végéig szól a klip. Új hangszín betöltése alatt a korábbi változat szól, betöltési hibánál is. A gyors egymás utáni módosítások közül a legutolsó lép életbe. Egy új ötletgyűjtemény generálása és a projektfájl megnyitása lezárja az aktuális előnézetet.
+
+### Gyorsbillentyűk
+
+| Billentyű | Művelet |
+| --- | --- |
+| Space | Indítás a kijelölt indítási ponttól / leállítás |
+| Shift+Space | Folytatás a megállítás helyéről / szünet |
+| Ctrl+Space | Folytatás / szünet, FL Studio-stílusban |
+| Home | Ugrás a klip elejére; lejátszás közben szinkronban |
+| Esc | Azonnali leállítás, ha nem egy szerkesztőműveletet szakít meg |
+| Ctrl/Cmd+L | Loop be/ki |
+| Ctrl/Cmd+S | Projekt mentése ebben a böngészőben |
+| Ctrl/Cmd+Z | Visszavonás |
+
+A mezők és szöveg szerkesztése közben a globális gyorsbillentyűk szünetelnek, a lenyomva tartott billentyű nem kapcsolgatja ismételten a lejátszót. A Space az [FL Studio](https://www.image-line.com/fl-studio-learning-content/fl-studio-online-manual/html/basics_shortcuts.htm) és az Ableton működését követi; a Shift+Space és a loop billentyű az [Ableton-súgó](https://www.ableton.com/en/manual/live-keyboard-shortcuts/) mintájára készült. A Ctrl/Cmd+L a Zengo felületén a loopot kapcsolja; mezőszerkesztés közben megmarad a böngésző saját működése. A rendszer- és böngészőszinten lefoglalt kombinációk (például macOS-en a Cmd+Space) az alkalmazás előtt elfoghatók; a Shift+Space minden platformon használható.
 
 A három dallamos szólam ugyanazt a piano rollt használja: rácsválasztás (1/16, 1/8, 1/4), skálára illesztett mozgatás, hang jobb szélének húzásával hosszállítás, hozzáadás, törlés. Üres helyre dupla kattintással is hozzáadható hang. Nyilak mozgatnak, Shift+nyilak hosszúságot változtatnak, Delete töröl, Escape megszakítja a húzást. A basszus és dallam monofonikus; az akkordoknál eltérő hangmagasságú hangok átfedhetik egymást. Rögzített akkord időtartományában hang nem módosítható. Az akkordpreset vagy ritmika megváltoztatása visszaállítja a generált akkordhangokat; minden szerkesztés visszavonható.
 
@@ -110,7 +125,8 @@ npm run preview
 ```
 
 - `src/harmony.ts`: skálák, diatonikus akkordok, seedelt jelöltválasztás, egyszerű szólamvezetés, akkordcsere és variációk.
-- `src/playback.ts`: megszakítható Tone.js előnézet; új előnézet vagy állapotmódosítás leállítja az előzőt.
+- `src/playback.ts`: audioórára szinkronizált Tone.js előnézet, szólamonként cserélhető hangmotorokkal, élő szerkesztéssel, fázistartó loop-pal és betöltési megszakításkezeléssel.
+- `src/hotkeys.ts`: mezőszerkesztést és helyi szerkesztőbillentyűket tiszteletben tartó DAW-szerű gyorsbillentyűk.
 - `src/midi.ts`: közös hanglistából képzett MIDI-export, tempóval és 4/4-es ütemmutatóval.
 - `src/App.tsx`, `src/TrackEditor.tsx`, `src/TransportBar.tsx`, `src/styles.css`: felület, közös piano roll, lejátszó, állapot és akkordszerkesztő.
 - `src/tracks.ts`, `src/note-data.ts`: közös hangmódosítás, rögzítés és ütközéskezelés.

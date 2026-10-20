@@ -64,6 +64,7 @@ import { Preview, type Instrument } from "./playback";
 import { isSampled, sampledInstruments, instrumentNames } from "./instruments";
 import { download, exportMidi } from "./midi";
 import { readLocale, translate, type Locale, type MessageKey } from "./i18n";
+import { shortcutFor } from "./hotkeys";
 
 function readSaved() {
   try {
@@ -106,6 +107,7 @@ export default function App() {
   );
   const [error, setError] = useState<MessageKey | "">("");
   const preview = useRef(new Preview());
+  const stoppedAt = useRef(0);
   const seed = useRef(Date.now() >>> 0);
   const selected = session.progressions.find((p) => p.id === session.selected);
   const chord = selected?.chords[active];
@@ -130,31 +132,82 @@ export default function App() {
       // Language switching still works when browser storage is unavailable.
     }
   }
+  const liveProgression = session.progressions.find((p) => p.id === playing);
+  useEffect(() => {
+    if (!playing || !liveProgression) return;
+    void preview.current
+      .update(liveProgression, tempo, instrument, { loop })
+      .catch(() => {
+        setLoadingSound(false);
+        setError(
+          "A lejátszás frissítése nem sikerült. A korábbi változat tovább szól.",
+        );
+      });
+  }, [liveProgression, playing, tempo, instrument, loop]);
+  const keyboardActions = useRef<(event: KeyboardEvent) => void>(() => {});
+  keyboardActions.current = (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const editing = !!target?.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+    );
+    const action = shortcutFor(event, editing);
+    if (!action) return;
+    const targetProgression =
+      liveProgression ?? selected ?? session.progressions[0];
+    if ((action === "toggle" || action === "resume") && !targetProgression)
+      return;
+    event.preventDefault();
+    if (action === "toggle" || action === "resume") {
+      if (playing) stop();
+      else
+        void play(
+          targetProgression!,
+          action === "resume" ? stoppedAt.current : undefined,
+        );
+    } else if (action === "stop") stop();
+    else if (action === "rewind") seek(0);
+    else if (action === "loop") setLoop((value) => !value);
+    else if (action === "save") save();
+    else if (action === "undo") undo();
+  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => keyboardActions.current(event);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   useEffect(() => {
     const player = preview.current;
     return () => player.stop();
   }, []);
   function stop() {
+    stoppedAt.current = preview.current.position;
     preview.current.stop();
     setPlaying(null);
     setLoadingSound(false);
     setPosition(null);
   }
   function seek(beat: number) {
-    stop();
     setCursor(beat);
+    stoppedAt.current = beat;
+    if (playing)
+      void preview.current
+        .seek(beat)
+        .catch(() =>
+          setError(
+            "A lejátszás frissítése nem sikerült. A korábbi változat tovább szól.",
+          ),
+        );
   }
   function commitTempo() {
     const entered = tempoDraft.trim() === "" ? NaN : Number(tempoDraft);
     const next = Number.isFinite(entered)
       ? Math.max(40, Math.min(220, Math.round(entered)))
       : tempo;
-    if (next !== tempo) stop();
     setTempo(next);
     setTempoDraft(String(next));
   }
   function commit(next: Session) {
-    stop();
+    if (playing && !next.progressions.some((p) => p.id === playing)) stop();
     setHistory((h) => [...h.slice(-29), session]);
     setSession(next);
     setMessage("");
@@ -193,7 +246,7 @@ export default function App() {
     setActive(0);
     setMessage("Négy új ötlet elkészült. Hallgasd meg, majd válassz egyet.");
   }
-  async function play(p: Progression) {
+  async function play(p: Progression, fromBeat?: number) {
     if (playing === p.id) {
       stop();
       return;
@@ -213,8 +266,9 @@ export default function App() {
         () => setLoadingSound(false),
         {
           loop,
-          startBeat: p.id === session.selected ? cursor : 0,
+          startBeat: fromBeat ?? (p.id === session.selected ? cursor : 0),
           onPosition: setPosition,
+          onUpdating: () => setLoadingSound(true),
         },
       );
     } catch {
@@ -229,7 +283,7 @@ export default function App() {
   function undo() {
     const previous = history.at(-1);
     if (!previous) return;
-    stop();
+    if (playing && !previous.progressions.some((p) => p.id === playing)) stop();
     setSession(previous);
     setHistory((h) => h.slice(0, -1));
     setMessage("Az utolsó változtatás visszavonva.");
@@ -538,7 +592,6 @@ export default function App() {
                     "40–220 BPM. A gépelt értéket Enterrel vagy a mező elhagyásával véglegesítheted.",
                   )}
                   onChange={(e) => {
-                    stop();
                     setTempoDraft(e.target.value);
                   }}
                   onBlur={commitTempo}
@@ -561,7 +614,6 @@ export default function App() {
               <select
                 value={instrument}
                 onChange={(e) => {
-                  stop();
                   setInstrument(e.target.value as Instrument);
                 }}
                 aria-label={t("Lejátszás hangszíne")}
@@ -754,7 +806,7 @@ export default function App() {
                     <button
                       className="select-button"
                       onClick={() => {
-                        stop();
+                        if (playing) setPlaying(p.id);
                         setSession({ ...session, selected: p.id });
                         setActive(0);
                         document.getElementById("studio")?.scrollIntoView({
@@ -889,7 +941,6 @@ export default function App() {
               cursor={cursor}
               loop={loop}
               onLoop={(v) => {
-                stop();
                 setLoop(v);
               }}
               onCursor={seek}
